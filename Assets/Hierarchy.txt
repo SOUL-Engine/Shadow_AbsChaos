@@ -1,0 +1,26 @@
+Player                         ← ShadowMotor.cs + CharacterController (Height 2, Radius 0.5, Center 0,1,0)
+│                                 THIS is what moves through the world. Nothing else moves by itself.
+│
+└── Visual                     ← empty GameObject at local (0,0,0). ONLY this rotates to face a direction.
+    │                             (Everything that should turn with Shadow's body goes under it.)
+    │
+    ├── Body                   ← Capsule, local pos (0,1,0). DELETE its Capsule Collider.
+    │                             (The CharacterController is the only collider.)
+    │
+    ├── Face                   ← small Cube, scale (0.3,0.15,0.3), local pos (0,1.6,0.4)
+    │                             (A "nose" so you can SEE which way the body faces.)
+    │
+    └── AimShoulder            ← empty GameObject, local pos (0.5,1.4,0.2)
+        │                         The shoulder joint. It moves with the body, but the script
+        │                         overrides its ROTATION in world space so it always aims at the crosshair.
+        │
+        └── ArmMesh            ← Cube, local pos (0,0,0.4), scale (0.15,0.15,0.8)
+                                  The "gun arm". Purely visual.
+
+CameraRig                      ← empty GameObject at (0,0,0) + ShadowCameraRig.cs
+│                                 NOT a child of Player. The script positions it on Player each frame.
+│
+└── Main Camera                ← the Camera. Its position is set by the script, so leave it at 0,0,0.
+                                  Remove any other camera/AudioListener duplicates.
+
+Ground / Boxes / Ramps         ← test geometry (each with a normal collider)

@@ -626,7 +626,7 @@ MonoBehaviour:
   groundAccel: 60
   groundDecel: 45
   airAccel: 25
-  jumpHeight: 2.2
+  jumpHeight: 5.06
   gravity: -35
   coyoteTime: 0.1
   jumpBuffer: 0.1
@@ -1234,7 +1234,7 @@ MonoBehaviour:
   maxPitch: 60
   pivotOffset: {x: 0, y: 1.5, z: 0}
   backDistance: 4.5
-  baseHeight: 0.9
+  baseHeight: 1.08
   jumpRise: 0.6
   sideOffset: 1.1
   sideBySector:
@@ -1262,7 +1262,7 @@ Transform:
   m_GameObject: {fileID: 1601058429}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.14, z: -0.28}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

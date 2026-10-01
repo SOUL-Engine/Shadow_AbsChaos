@@ -87,6 +87,10 @@ public partial class ShadowMotor : MonoBehaviour
     public float dodgeRechargeTime = 1.2f;  // seconds for ONE charge to come back (they return one at a time)
     public float dodgeInvulnTail = 0.12f; // extra invulnerable time AFTER reappearing (forgiving window)
 
+    [Header("Invulnerability (decide these in the sandbox, once enemies shoot back)")]
+    public bool spinDashInvulnerable = false; // Sonic-style protected ball form?
+    public bool ballDashInvulnerable = false; // protect the homing attack / ball dash too?
+
     [Header("Chaos Effects (afterimages, shared by dodge and ball dash)")]
     public float ghostSpacing = 1.6f;   // metres between trail afterimages
     public float ghostLife = 0.35f;     // seconds an afterimage takes to fade
@@ -131,7 +135,9 @@ public partial class ShadowMotor : MonoBehaviour
                          && Mode != ShadowMoveMode.Mantle;
 
     // The health system (not built yet) must check this before applying ANY damage.
-    public bool IsInvulnerable => IsDodging || Time.time < invulnUntil;
+    public bool IsInvulnerable => IsDodging || Time.time < invulnUntil
+                               || (spinDashInvulnerable && Mode == ShadowMoveMode.SpinDash)
+                               || (ballDashInvulnerable && Mode == ShadowMoveMode.BallDash);
 
     // One-frame reports, read by the camera.
     public bool LandedThisFrame { get; private set; }
@@ -522,6 +528,22 @@ public partial class ShadowMotor : MonoBehaviour
         {
             boost = Mathf.Min(boostMax, boost + boostRegenPerSec * Time.deltaTime);
         }
+    }
+
+    // Wipes all movement state. Used when Shadow respawns in place after dying.
+    public void ResetMotion()
+    {
+        horizontalVel = Vector3.zero;
+        verticalVel = 0f;
+        Mode = ShadowMoveMode.Normal;
+        SetControllerHeight(standingHeight);
+        SetVisualVisible(true);
+        ResetAirCounters();
+        boost = boostMax;
+        boostLocked = false;
+        dodgeCharges = maxDodgeCharges;
+        dodgeRecharge = 0f;
+        invulnUntil = 0f;
     }
 
     // ---------------- Facing and body pose ----------------

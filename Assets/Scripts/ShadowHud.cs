@@ -34,13 +34,15 @@ public class ShadowHud : MonoBehaviour
     ShadowMotor motor;
     ShadowInput input;
     ShadowTestWeapon weapon;   // optional
-    GUIStyle ammoStyle, smallStyle;
+    ShadowHealth health;       // optional
+    GUIStyle ammoStyle, smallStyle, deathStyle;
 
     void Awake()
     {
         motor = GetComponent<ShadowMotor>();
         input = GetComponent<ShadowInput>();
         weapon = GetComponent<ShadowTestWeapon>();
+        health = GetComponent<ShadowHealth>();
     }
 
     // Live tuning of the homing sensor while the debug overlay is open.
@@ -61,6 +63,7 @@ public class ShadowHud : MonoBehaviour
         DrawResources();
         DrawAmmo();
         DrawLockOn();
+        DrawHealth();
         if (motor.homingDebug) DrawHomingDebug();
     }
 
@@ -70,6 +73,8 @@ public class ShadowHud : MonoBehaviour
             ammoStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, alignment = TextAnchor.LowerRight };
         if (smallStyle == null)
             smallStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleLeft };
+        if (deathStyle == null)
+            deathStyle = new GUIStyle(GUI.skin.label) { fontSize = 56, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
     }
 
     // ------------------------------------------------------------------
@@ -145,6 +150,41 @@ public class ShadowHud : MonoBehaviour
             ? "AMMO  INF"
             : $"AMMO  {weapon.PrimaryAmmo}  |  SHELLS  {weapon.AltAmmo}";
         GUI.Label(new Rect(Screen.width - 320f, Screen.height - 44f, 300f, 28f), text, ammoStyle);
+    }
+
+    // ------------------------------------------------------------------
+    // HEALTH: bar above the MODE label, a red screen flash when hit, and the death screen.
+    // Health never regenerates, so the bar only goes up when you pick something up.
+    void DrawHealth()
+    {
+        if (health == null) return;
+
+        const float x = 20f, w = 240f;
+        float y = Screen.height - 106f; // sits just above the MODE label
+        Rect r = new Rect(x, y, w, 18f);
+        Box(r, new Color(0f, 0f, 0f, 0.6f));
+
+        bool low = health.Health01 < 0.3f;
+        Color c = new Color(0.9f, 0.15f, 0.15f);
+        if (low && Mathf.Repeat(Time.time * 4f, 1f) < 0.5f) c = new Color(0.45f, 0.05f, 0.05f); // pulses when low
+        Box(new Rect(r.x + 2f, r.y + 2f, (r.width - 4f) * health.Health01, r.height - 4f), c);
+        Label(x + w + 8f, y, "HEALTH  " + Mathf.CeilToInt(health.Health) + " / " + Mathf.CeilToInt(health.maxHealth));
+
+        // Brief green tick when healed.
+        if (Time.time - health.LastHealTime < 0.6f)
+            Box(new Rect(r.x, r.y, r.width, r.height), new Color(0.2f, 1f, 0.35f, 0.35f * (1f - (Time.time - health.LastHealTime) / 0.6f)));
+
+        // Red flash on every hit.
+        float since = Time.time - health.LastDamageTime;
+        if (since < 0.35f)
+            Box(new Rect(0f, 0f, Screen.width, Screen.height), new Color(0.8f, 0f, 0f, 0.35f * (1f - since / 0.35f)));
+
+        if (health.IsDead)
+        {
+            Box(new Rect(0f, 0f, Screen.width, Screen.height), new Color(0f, 0f, 0f, 0.55f));
+            GUI.color = Color.white;
+            GUI.Label(new Rect(0f, Screen.height * 0.38f, Screen.width, 80f), "YOU DIED", deathStyle);
+        }
     }
 
     // Square on the enemy Shadow's homing attack would lock onto.

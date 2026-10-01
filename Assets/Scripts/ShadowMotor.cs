@@ -142,6 +142,7 @@ public partial class ShadowMotor : MonoBehaviour
     public bool HomingStartedThisFrame { get; private set; }
 
     // Warp charges, for the HUD.
+    public bool DebugGrounded => cc.isGrounded; // the HUD shows AIR when this is false: reveals ground-contact flicker
     public int DodgeCharges => dodgeCharges;
     public int MaxDodgeCharges => maxDodgeCharges;
     public float DodgeRechargeProgress => dodgeCharges >= maxDodgeCharges ? 1f : Mathf.Clamp01(dodgeRecharge / dodgeRechargeTime);
@@ -242,6 +243,13 @@ public partial class ShadowMotor : MonoBehaviour
         {
             TryStartSlam();                                  // airborne: dive
             if (!jumpFired) TryStartSlide(wishDir, hasInput); // grounded: slide / spin dash
+            // Neither started this frame (ground contact can flicker for a frame)? Keep trying
+            // for a moment while Ctrl is held, so a slide is never lost to a one-frame hiccup.
+            if (Mode == ShadowMoveMode.Normal) slideBufferedUntil = Time.time + slideBufferTime;
+        }
+        else if (Mode == ShadowMoveMode.Normal && Time.time <= slideBufferedUntil && input.SlamHeld && !jumpFired)
+        {
+            TryStartSlide(wishDir, hasInput);
         }
 
         // ---- 7. Automatic airborne abilities: pull up onto a ledge, else start a wall run ----
@@ -334,6 +342,9 @@ public partial class ShadowMotor : MonoBehaviour
                           : (IsBoosting ? boostSpeed : walkSpeed);
         Vector3 targetVel = wishDir * targetSpeed;
         float accel = cc.isGrounded ? (hasInput ? groundAccel : groundDecel) : airAccel;
+        // Just after a homing hit the player only gets a fraction of their air control, so the
+        // bounce plays out the same way every time (see homingResolveTime).
+        if (Time.time < homingResolveUntil) accel *= homingResolveControl;
         horizontalVel = Vector3.MoveTowards(horizontalVel, targetVel, accel * Time.deltaTime);
     }
 
@@ -586,7 +597,7 @@ public partial class ShadowMotor : MonoBehaviour
     {
         Transform camT = rig.cam.transform;
 
-        if (RaycastIgnoringSelf(camT.position, camT.forward, aimMaxDistance, out RaycastHit hit))
+        if (CrosshairCast(camT.forward, aimMaxDistance, out RaycastHit hit))
             AimPoint = hit.point;
         else
             AimPoint = camT.position + camT.forward * aimMaxDistance;
@@ -597,6 +608,41 @@ public partial class ShadowMotor : MonoBehaviour
             ? Quaternion.LookRotation(toAim)
             : camT.rotation; // too close: avoid wild swinging
     }
+
+    // THE CROSSHAIR RAY, for aiming AND shooting. It starts at the CAMERA and returns the nearest thing
+    // under the reticle, ignoring Shadow himself and anything clearly BEHIND him (between camera and Shadow).
+    // Starting at the camera (not at the gun) is what makes point-blank shots reliable: a ray that starts
+    // INSIDE an enemy's collider can't hit it, but the camera ray reaches the enemy's front surface first.
+    // `dir` is normally the camera's forward; the weapon passes spread directions too.
+    public bool CrosshairCast(Vector3 dir, float maxDist, out RaycastHit best)
+    {
+        Transform camT = rig.cam.transform;
+        Vector3 chest = transform.position + Vector3.up;
+        // Anything more than 0.75 m behind Shadow's depth (as seen from the camera) doesn't count.
+        float minDepth = Vector3.Dot(chest - camT.position, camT.forward) - 0.75f;
+
+        int n = Physics.RaycastNonAlloc(camT.position, dir, aimHits, maxDist, aimMask,
+                                        QueryTriggerInteraction.Ignore);
+        best = default;
+        float bestDist = float.MaxValue;
+        bool found = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (aimHits[i].collider.transform.IsChildOf(transform)) continue;                   // Shadow himself
+            if (Vector3.Dot(aimHits[i].point - camT.position, camT.forward) < minDepth) continue; // behind Shadow
+            if (aimHits[i].distance < bestDist)
+            {
+                bestDist = aimHits[i].distance;
+                best = aimHits[i];
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    // A plain world raycast from any point that ignores Shadow's own colliders (used by the weapon's cover check).
+    public bool WorldCast(Vector3 origin, Vector3 dir, float maxDist, out RaycastHit hit)
+        => RaycastIgnoringSelf(origin, dir, maxDist, out hit);
 
     // Nearest hit that is NOT part of Shadow himself (the Player object or any child).
     // This makes every query independent of layer setup: his own capsule, face cube or

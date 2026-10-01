@@ -25,6 +25,12 @@ public partial class ShadowMotor
     public float slideSteerDegPerSec = 60f;  // gentle steering while sliding
     public float slideSlopeAccel = 40f;      // slope bonus: m/s per second on a 90-degree slope. A 20-degree hill gives about 14
     public float slideMaxSpeed = 30f;        // top speed a slide can reach downhill
+    public float slideGroundGrace = 0.15f;   // a slide may START this long after the ground was last touched (forgives ground-contact flicker)
+    public float slideBufferTime = 0.15f;    // Ctrl pressed up to this long BEFORE a slide is possible still starts one
+    public float slideAirGrace = 0.35f;      // a slide is only cancelled after being airborne this long (mini hops over seams don't count)
+    public float slideGroundPush = 6f;       // downward push while sliding that keeps the collider glued to the floor
+    public float slideSnapDistance = 0.4f;   // after a hop, if the floor is this close beneath, snap back down onto it
+    public float slideSnapSpeed = 12f;       // ...with this downward speed
 
     [Header("Spin Dash (Ctrl + boost)")]
     public float spinDashStartSpeed = 18f;
@@ -43,12 +49,14 @@ public partial class ShadowMotor
     float standingHeight;                    // remembered from the CharacterController at startup
     Vector3 slideDir;                        // current slide / spin direction (flat, unit length)
     float slideSpeed;
+    float slideAirTime;                      // how long the current slide has been off the ground
+    float slideBufferedUntil;                // Time.time until which a pressed-but-not-started slide keeps retrying
     readonly Dictionary<IDamageable, float> spinHitTimes = new Dictionary<IDamageable, float>();
 
     // Starts a slide, or a spin dash if boost is held and there is gauge.
     void TryStartSlide(Vector3 wishDir, bool hasInput)
     {
-        if (Mode != ShadowMoveMode.Normal || !cc.isGrounded) return;
+        if (Mode != ShadowMoveMode.Normal || !GroundedForSlide()) return;
 
         float speed = horizontalVel.magnitude;
         if (speed < 2f && !hasInput) return; // standing still: nothing to slide
@@ -62,7 +70,14 @@ public partial class ShadowMotor
         slideSpeed = Mathf.Max(speed, spin ? spinDashStartSpeed : slideStartSpeed);
         carryMomentum = false;
         SetControllerHeight(slideHeight);
+        slideAirTime = 0f;
     }
+
+    // "Standing on the ground" for the purpose of starting a slide. CharacterController.isGrounded can
+    // flicker false for a frame (seams between floor pieces, tiny bumps), so we also accept ground that
+    // was touched a moment ago, as long as we are not in the middle of a jump.
+    bool GroundedForSlide()
+        => cc.isGrounded || (Time.time - lastTouchGroundTime <= slideGroundGrace && verticalVel < 3f);
 
     void BeginSpinDash()
     {
@@ -76,8 +91,10 @@ public partial class ShadowMotor
     {
         float dt = Time.deltaTime;
 
-        // Slid off a ledge: hand over to normal air movement, keeping our speed.
-        if (IsAirborne)
+        // Tiny hops over seams and bumps are normal and must NOT cancel the slide. Only being off the
+        // ground for slideAirGrace seconds (a real drop, like a ledge) hands over to air movement.
+        slideAirTime = cc.isGrounded ? 0f : slideAirTime + dt;
+        if (slideAirTime > slideAirGrace)
         {
             horizontalVel = slideDir * slideSpeed;
             ExitSlide(true);
@@ -135,7 +152,14 @@ public partial class ShadowMotor
         Vector3 v = slideDir * slideSpeed;
         if (onGround) v = Vector3.ProjectOnPlane(v, groundN);
         horizontalVel = new Vector3(v.x, 0f, v.z);
-        if (onGround) verticalVel = v.y - 2f; // small push keeps us glued (gravity is added after this)
+        if (onGround)
+        {
+            // Keep the collider glued to the floor. A firm push (stronger than the walking -2) stops it
+            // skipping over seams. If a hop already happened but the floor is right below, snap down harder.
+            float push = slideGroundPush;
+            if (!cc.isGrounded && ground.distance - 0.5f <= slideSnapDistance) push = slideSnapSpeed;
+            verticalVel = v.y - push; // (gravity is added after this)
+        }
 
         // Ending: Ctrl released, or a slide ran out of speed. Only stand up if there is headroom.
         bool tooSlow = Mode == ShadowMoveMode.Slide && slideSpeed < slideMinSpeed;

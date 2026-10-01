@@ -133,7 +133,7 @@ public class ShadowHud : MonoBehaviour
         Label(x + w + 8f, warpY, "WARP " + motor.DodgeCharges + "/" + max);
 
         // ---- MODE (debug) ----
-        Label(x, warpY - 22f, "MODE  " + motor.Mode);
+        Label(x, warpY - 22f, "MODE  " + motor.Mode + (motor.DebugGrounded ? "" : "   (AIR)")); // AIR flickering during a slide = ground contact is hopping
     }
 
     void DrawAmmo()

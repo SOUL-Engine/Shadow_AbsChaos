@@ -8,10 +8,14 @@ using UnityEngine;
 //   LMB (hold) = rapid hitscan pistol
 //   RMB        = shotgun blast (8 pellets, short range, cooldown)
 //
-// HOW AIMING WORKS: the crosshair ray (motor.AimPoint) decides WHERE we aim.
-// Bullets then leave the arm's muzzle toward that point. A second raycast from
-// the muzzle catches anything standing between the arm and the crosshair target
-// (corners, cover), so you cannot shoot through a wall edge.
+// HOW AIMING WORKS (v0.7): the CROSSHAIR RAY decides every hit. It starts at the
+// camera (motor.CrosshairCast), so "reticle on the enemy" always means a hit,
+// including point-blank right after a homing attack, in the air or on the ground.
+// (Before v0.7 the ray started at the gun. Right after a homing hit the gun is
+// INSIDE the enemy's collider, and a ray that starts inside a collider cannot hit it.)
+// The tracer is drawn from the muzzle to the hit point. A cover check from the
+// muzzle still stops you shooting through a wall edge: if a DIFFERENT solid object
+// sits between the arm and the target, the shot hits that instead.
 //
 // Runs late (DefaultExecutionOrder 100) so the camera and AimPoint are final this frame.
 // ============================================================================
@@ -82,25 +86,42 @@ public class ShadowTestWeapon : MonoBehaviour
 
     Vector3 Muzzle() => motor.aimArm.position + motor.aimArm.forward * muzzleDistance;
 
-    // Direction from the muzzle to the crosshair target (falls back to camera forward if too close).
-    Vector3 BaseDirection()
-    {
-        Vector3 toAim = motor.AimPoint - Muzzle();
-        return toAim.sqrMagnitude > 0.25f ? toAim.normalized : motor.rig.cam.transform.forward;
-    }
+    // The aim direction is simply where the camera (and so the crosshair) points.
+    Vector3 BaseDirection() => motor.rig.cam.transform.forward;
 
     void FireRay(Vector3 dir, float maxRange, float dmg, Color tracerColor)
     {
         Vector3 muzzle = Muzzle();
         Vector3 end = muzzle + dir * maxRange;
 
-        if (Physics.Raycast(muzzle, dir, out RaycastHit hit, maxRange, motor.aimMask, QueryTriggerInteraction.Ignore))
+        // 1. What is under the crosshair? (camera ray: ignores Shadow, ignores things behind him)
+        if (motor.CrosshairCast(dir, maxRange, out RaycastHit hit))
         {
+            // 2. Cover check from the arm. If a DIFFERENT solid object is between the muzzle and the
+            //    target, the shot hits it instead. A muzzle that is INSIDE the target (point-blank)
+            //    sees nothing in the way, so the shot goes through as it should.
+            Vector3 toHit = hit.point - muzzle;
+            float dist = toHit.magnitude;
+            if (dist > 0.1f
+                && motor.WorldCast(muzzle, toHit / dist, dist - 0.05f, out RaycastHit cover)
+                && cover.collider != hit.collider
+                && !SameTarget(cover.collider, hit.collider))
+            {
+                hit = cover;
+            }
+
             end = hit.point;
-            ShadowTestTarget t = hit.collider.GetComponentInParent<ShadowTestTarget>();
-            if (t != null) t.Hit(dmg, hit.point);
+            IDamageable d = hit.collider.GetComponentInParent<IDamageable>();
+            if (d != null) d.TakeDamage(dmg, hit.point);
         }
         SpawnTracer(muzzle, end, tracerColor);
+    }
+
+    // Two colliders belong to the same enemy if they share the same IDamageable (e.g. head + body).
+    static bool SameTarget(Collider a, Collider b)
+    {
+        IDamageable da = a.GetComponentInParent<IDamageable>();
+        return da != null && da == b.GetComponentInParent<IDamageable>();
     }
 
     // Prototype tracer: a thin stretched cube that deletes itself. Fine for testing; pool it later.

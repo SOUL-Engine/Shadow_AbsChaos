@@ -730,10 +730,12 @@ MonoBehaviour:
   boostRegenPerSec: 20
   boostRegenDelay: 0.75
   boostUnlockFraction: 0.3
-  dodgeDistance: 6.5
-  dodgeSpeed: 36
+  dodgeDistance: 7.3
+  dodgeSpeed: 54.3
   dodgeExitSpeedFraction: 0.6
-  dodgeCooldown: 0.15
+  maxDodgeCharges: 5
+  dodgeUseCooldown: 0.2
+  dodgeRechargeTime: 1.2
   dodgeInvulnTail: 0.12
   ghostSpacing: 1.6
   ghostLife: 0.35
@@ -752,26 +754,50 @@ MonoBehaviour:
     m_Bits: 4294967295
   aimMaxDistance: 200
   minAimDistance: 3
-  homingRange: 18
-  homingConeDegrees: 50
+  homingRange: 16.8
+  homingAimRadius: 1.56
+  homingAimRadiusFar: 4.23
+  homingSameTargetLockout: 0.18
+  homingDebug: 1
   homingSpeed: 48
   homingMaxTime: 0.6
   homingHitDistance: 1.1
   homingDamage: 25
   homingBounceSpeed: 11
   homingBounceBack: 3
+  homingResolveTime: 0.3
+  homingResolveControl: 0.2
   airDashDistance: 9
   airDashSpeed: 60
   airDashExitSpeed: 12
+  airDashRise: 1.4
+  airDashExitLift: 7
   airDashDamage: 20
   ballHitRadius: 0.9
   airPressMinTime: 0.12
   dashMinGroundDistance: 1.2
+  airDashStaminaCost: 13
+  homingStaminaCost: 0
+  homingChainWindow: 5
+  homingRegainByChain:
+  - 0
+  - 0.08
+  - 0.2
+  - 0.4
+  - 0.667
   slideHeight: 1
   slideStartSpeed: 12
   slideDecel: 7
   slideMinSpeed: 3.5
   slideSteerDegPerSec: 60
+  slideSlopeAccel: 40
+  slideMaxSpeed: 30
+  slideGroundGrace: 0.15
+  slideBufferTime: 0.15
+  slideAirGrace: 0.35
+  slideGroundPush: 6
+  slideSnapDistance: 0.4
+  slideSnapSpeed: 12
   spinDashStartSpeed: 18
   spinDashSpeed: 24
   spinDashAccel: 40
@@ -793,7 +819,7 @@ MonoBehaviour:
   wallCheckDistance: 0.8
   wallRunMinSpeed: 6
   wallRunSpeed: 15
-  wallRunDuration: 2.2
+  wallRunDuration: 3.36
   wallRunLift: 2
   wallRunGravityScale: 0.12
   wallRunMaxFall: 3
@@ -899,6 +925,11 @@ MonoBehaviour:
   armLength: 9
   gap: 5
   thickness: 2
+  staminaColor: {r: 0.2, g: 0.9, b: 1, a: 1}
+  staminaLowColor: {r: 1, g: 0.45, b: 0.1, a: 1}
+  warpColor: {r: 1, g: 0.12, b: 0.08, a: 1}
+  warpRechargeColor: {r: 0.45, g: 0.06, b: 0.05, a: 1}
+  debugRingDepth: 12
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -1981,9 +2012,17 @@ MonoBehaviour:
   rollSmoothing: 8
   wallRunRoll: 9
   slideCameraDrop: 1.01
+  slidePullIn: 1
+  slideFovAdd: 14
+  slideZoomRate: 8
   horizontalFollowRate: 10
   maxFollowLag: 2
   warpExtraLag: 2.5
+  homingHoldDuration: 1.4
+  homingHoldFollowRate: 5
+  releaseFollowRate: 3
+  holdMaxLag: 8
+  holdMaxLagVertical: 5
   fallHeightCentre: 0.25
   fallHeightSide: -0.93
   minHeight: -1

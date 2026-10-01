@@ -46,7 +46,7 @@ public partial class ShadowMotor
     public float homingRange = 25f;              // max distance from Shadow to a target
     public float homingAimRadius = 2f;           // metres off the crosshair line that still counts for a CLOSE enemy (about one character length)
     public float homingAimRadiusFar = 5f;        // ...and for an enemy at max range. The zone is a cone: it widens from near to this.
-    public float homingSameTargetLockout = 0.8f; // can't re-lock the enemy you just hit for this long
+    public float homingSameTargetLockout = 1.2f; // can't re-lock the enemy you just hit for this long (covers the whole bounce arc)
     public bool homingDebug;                     // evaluate the sensor even on the ground + record the report (F3 in play mode)
 
     [Header("Homing Attack (flight)")]
@@ -55,12 +55,17 @@ public partial class ShadowMotor
     public float homingHitDistance = 1.1f;       // counts as a hit this close to the target's surface
     public float homingDamage = 25f;
     public float homingBounceSpeed = 11f;        // upward speed after a hit: "gains a little height"
-    public float homingBounceBack = 3f;          // small push back off the enemy
+    public float homingBounceBack = 5f;          // push AWAY from the enemy (m/s), along the attack direction. Always the same, so the bounce is predictable
+    public float homingResolveTime = 0.3f;       // seconds after a hit during which the player only gets a fraction of air control...
+    [Range(0f, 1f)]
+    public float homingResolveControl = 0.2f;    // ...this fraction (0 = locked on the bounce, 1 = full control)
 
     [Header("Ball Dash (no target)")]
     public float airDashDistance = 9f;
     public float airDashSpeed = 60f;
     public float airDashExitSpeed = 12f;         // speed carried out of the dash
+    public float airDashRise = 1.4f;             // metres of height gained DURING the dash (rises as it travels)
+    public float airDashExitLift = 7f;           // upward speed when the dash ends: about +0.7 m more. Together ~ a double jump (2.2 m)
     public float airDashDamage = 20f;            // damage to anything the ball passes through
     public float ballHitRadius = 0.9f;
     public float airPressMinTime = 0.12f;        // seconds after leaving the ground before a second press counts
@@ -94,6 +99,7 @@ public partial class ShadowMotor
 
     // ---- Private state ----
     int homingChain;
+    float homingResolveUntil;                  // Time.time until which air control is reduced after a homing hit
     float lastHomingHitTime = -10f;
     IDamageable lastHomingTarget;
     float lastHomingTargetTime = -10f;
@@ -251,7 +257,7 @@ public partial class ShadowMotor
         boost -= airDashStaminaCost;       // spends the boost gauge...
         lastBoostTime = Time.time;         // ...and pauses its refill, like boosting does
         Vector3 f = rig.cam.transform.forward;
-        f.y = Mathf.Clamp(f.y, -0.6f, 0.25f);
+        f.y = Mathf.Clamp(f.y, -0.6f, 0.1f); // aiming down dives; the upward part comes from airDashRise, not the aim
         ballDir = f.normalized;
         ballHoming = false;
         ballTargetCollider = null;
@@ -303,6 +309,8 @@ public partial class ShadowMotor
             float step = Mathf.Min(airDashSpeed * dt, ballRemaining);
             vel = ballDir * (step / dt);
             ballRemaining -= step;
+            // Height boost: rises by airDashRise over the time the dash takes (distance / speed).
+            vel.y += airDashRise / Mathf.Max(0.01f, airDashDistance / airDashSpeed);
         }
 
         horizontalVel = new Vector3(vel.x, 0f, vel.z);
@@ -362,12 +370,20 @@ public partial class ShadowMotor
         lastHomingTarget = ballTargetDamageable;
         lastHomingTargetTime = Time.time;
 
-        Vector3 flat = new Vector3(ballDir.x, 0f, ballDir.z);
-        horizontalVel = flat.sqrMagnitude > 0.0001f ? -flat.normalized * homingBounceBack : Vector3.zero;
+        // PREDICTABLE RESOLUTION: every hit bounces UP by homingBounceSpeed and AWAY from the enemy by
+        // homingBounceBack, along the line of the attack. For a nearly vertical attack there is no
+        // meaningful "away", so he backs off the way the camera faces. For a short time afterwards the
+        // player only has a fraction of air control (homingResolveControl), so it plays out the same way
+        // every time and he can't drift back over the same enemy.
+        Vector3 away = new Vector3(-ballDir.x, 0f, -ballDir.z);
+        if (away.sqrMagnitude < 0.05f)
+            away = -(Quaternion.Euler(0f, rig.Yaw, 0f) * Vector3.forward);
+        horizontalVel = away.normalized * homingBounceBack;
         verticalVel = homingBounceSpeed;
+        homingResolveUntil = Time.time + homingResolveTime;
 
         Mode = ShadowMoveMode.Normal;
-        carryMomentum = true;
+        carryMomentum = false;
     }
 
     // The dash ended without a hit (finished, timed out, blocked, or target vanished).
@@ -375,7 +391,8 @@ public partial class ShadowMotor
     {
         Vector3 flat = new Vector3(ballDir.x, 0f, ballDir.z);
         horizontalVel = flat.sqrMagnitude > 0.0001f ? flat.normalized * airDashExitSpeed : Vector3.zero;
-        verticalVel = 0f;
+        // An untargeted dash ends with an upward kick (the double-jump feel). A homing dash that fizzled doesn't.
+        verticalVel = ballHoming ? 0f : airDashExitLift;
         Mode = ShadowMoveMode.Normal;
         carryMomentum = true;
     }

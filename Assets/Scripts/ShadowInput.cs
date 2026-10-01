@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // ============================================================================
 // ShadowInput.cs                                                     (v0.3)
@@ -27,8 +28,22 @@ public class ShadowInput : MonoBehaviour
     public bool DodgePressed  => controls.Gameplay.Dodge.WasPressedThisFrame();      // one frame
     public bool SlamPressed   => controls.Gameplay.GroundSlam.WasPressedThisFrame(); // one frame
     public bool BoostHeld     => controls.Gameplay.Boost.IsPressed();                // while held
+    public bool SlamHeld      => controls.Gameplay.GroundSlam.IsPressed();           // while held (Ctrl): slide / spin dash
     public bool FireHeld      => controls.Gameplay.Fire.IsPressed();                 // while held
     public bool AltFireHeld   => controls.Gameplay.AltFire.IsPressed();              // while held
+
+    // ---- DEBUG-ONLY keys (deliberately NOT in the Actions asset: they are dev tools, not game controls) ----
+    public bool DebugTogglePressed => Keyboard.current != null && Keyboard.current.f3Key.wasPressedThisFrame;
+    // +1 when ] was pressed this frame, -1 when [ was pressed (homing aim radius)
+    public int DebugRadiusStep => Keyboard.current == null ? 0
+        : (Keyboard.current.rightBracketKey.wasPressedThisFrame ? 1 : 0) - (Keyboard.current.leftBracketKey.wasPressedThisFrame ? 1 : 0);
+    // +1 when = was pressed, -1 when - was pressed (homing range)
+    public int DebugRangeStep => Keyboard.current == null ? 0
+        : (Keyboard.current.equalsKey.wasPressedThisFrame ? 1 : 0) - (Keyboard.current.minusKey.wasPressedThisFrame ? 1 : 0);
+
+    // +1 when ' was pressed, -1 when ; was pressed (homing FAR aim radius: how wide the cone gets at max range)
+    public int DebugFarRadiusStep => Keyboard.current == null ? 0
+        : (Keyboard.current.quoteKey.wasPressedThisFrame ? 1 : 0) - (Keyboard.current.semicolonKey.wasPressedThisFrame ? 1 : 0);
 
     void Awake()     => controls = new InputSystem_Actions();
     void OnEnable()  => controls.Gameplay.Enable();   // start listening

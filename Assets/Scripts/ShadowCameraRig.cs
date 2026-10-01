@@ -55,11 +55,25 @@ public class ShadowCameraRig : MonoBehaviour
     [Header("Strafe Roll")]
     public float maxRoll = 3.5f;     // degrees of tilt at full sideways speed. NEGATE if it leans the wrong way.
     public float rollSmoothing = 8f;
+    public float wallRunRoll = 9f;   // extra tilt AWAY from the wall while wall running (Titanfall-style)
+
+    [Header("Slide")]
+    public float slideCameraDrop = 0.5f; // camera lowers this much while sliding / spin dashing
+    public float slidePullIn = 1.0f;     // camera moves this much CLOSER while sliding / spin dashing
+    public float slideFovAdd = 14f;      // FOV widening while sliding / spin dashing (like boosting)
+    public float slideZoomRate = 8f;     // how fast the pull-in eases in and out
 
     [Header("Follow Lag")]
     public float horizontalFollowRate = 10f; // LOWER = more lag. Lag distance is about speed / rate
     public float maxFollowLag = 2f;          // hard cap (metres) so Shadow can never outrun the camera
     public float warpExtraLag = 2.5f;        // extra cap while Chaos-dodging: the camera whips after him
+
+    [Header("Homing Chain Camera (Sonic Generations-style hold)")]
+    public float homingHoldDuration = 1.4f;  // seconds the camera stays put after a homing hit (back off, shoot...)
+    public float homingHoldFollowRate = 5f;  // how fast it drifts to its held spot (e.g. to the PREVIOUS hit on a 2nd homing attack)
+    public float releaseFollowRate = 3f;     // follow speed right after the hold ends; ramps back to normal
+    public float holdMaxLag = 8f;            // Shadow is never allowed further than this (metres) from the held camera
+    public float holdMaxLagVertical = 5f;
 
     [Header("Falling (camera drops below Shadow)")]
     public float fallHeightCentre = 0.25f; // camera height over the pivot while falling, Shadow CENTRED
@@ -107,6 +121,10 @@ public class ShadowCameraRig : MonoBehaviour
     float collisionDist;                                // current camera distance after collision
     float fovCurrent, fovKick;                          // smoothed FOV + the instant punch on top
     readonly RaycastHit[] camHits = new RaycastHit[16];
+    // Homing-chain hold state
+    bool holdActive, hasLastHit;
+    float holdTimer, currentFollowRate, currentBack;
+    Vector3 holdPivot, lastHitPivot;
 
     void Start()
     {
@@ -115,6 +133,8 @@ public class ShadowCameraRig : MonoBehaviour
         currentY = baseHeight;
         collisionDist = backDistance;
         lagCap = maxFollowLag;
+        currentFollowRate = horizontalFollowRate;
+        currentBack = backDistance;
         smoothedPivot = target.position + pivotOffset;
         fovCurrent = baseFov;
         cam.fieldOfView = baseFov;
@@ -137,10 +157,12 @@ public class ShadowCameraRig : MonoBehaviour
             landY = Mathf.Max(currentY - dip, minHeight);
             landTimer = landDipHold;
         }
-        if (motor.DodgeStartedThisFrame) fovKick = dodgeFovKick;
+        if (motor.DodgeStartedThisFrame || motor.BallDashStartedThisFrame) fovKick = dodgeFovKick;
 
         // ---- 3. Screen side (sideways offset) ----
         UpdateSide(motor.MoveInput);
+        // While wall running, keep Shadow on the WALL side of the screen so the camera sits clear of the wall.
+        if (motor.IsWallRunning) committedSide = motor.WallSide;
         float targetX = -committedSide * sideOffset; // camera goes to the OPPOSITE side of where Shadow should appear
         currentX = Smooth(currentX, targetX, sideSmoothing);
 
@@ -156,7 +178,7 @@ public class ShadowCameraRig : MonoBehaviour
         }
         else if (!motor.IsAirborne)
         {
-            targetY = baseHeight;                    // standing: spring back up quickly after a landing
+            targetY = baseHeight - ((motor.IsSliding || motor.IsSpinDashing) ? slideCameraDrop : 0f);                    // standing: spring back up quickly after a landing
             yRate = landRecoverRate;
         }
         else if (falling)
@@ -171,16 +193,46 @@ public class ShadowCameraRig : MonoBehaviour
         }
         currentY = Smooth(currentY, targetY, yRate);
 
-        // ---- 5. Follow lag: the orbit pivot trails Shadow on the ground plane ----
+        // ---- 5. Follow lag, plus the homing-chain HOLD ----
         Vector3 desiredPivot = target.position + pivotOffset;
-        float follow = 1f - Mathf.Exp(-horizontalFollowRate * Time.deltaTime);
-        smoothedPivot.x = Mathf.Lerp(smoothedPivot.x, desiredPivot.x, follow);
-        smoothedPivot.z = Mathf.Lerp(smoothedPivot.z, desiredPivot.z, follow);
-        smoothedPivot.y = desiredPivot.y; // vertical stays rigid: jump/fall feel comes from currentY above
 
-        // The lag limit jumps UP instantly during a warp, then eases back down afterwards.
-        float capTarget = maxFollowLag + (motor.IsDodging ? warpExtraLag : 0f);
-        lagCap = capTarget > lagCap ? capTarget : Smooth(lagCap, capTarget, 6f);
+        // Sonic Generations-style chain camera:
+        //  * A homing HIT freezes the camera where it is, so you can back off and shoot without it lunging after you.
+        //  * The NEXT homing attack sends the camera to where the previous hit happened, then it holds again.
+        //  (Mouse look is never frozen: only the camera's POSITION is.)
+        if (motor.HomingStartedThisFrame && holdActive && hasLastHit)
+        {
+            holdPivot = lastHitPivot;
+            holdTimer = Mathf.Max(holdTimer, motor.homingMaxTime + 0.2f); // don't release mid-flight
+        }
+        if (motor.HomingHitThisFrame)
+        {
+            lastHitPivot = desiredPivot;
+            hasLastHit = true;
+            holdPivot = smoothedPivot;       // freeze right where the camera is now
+            holdActive = true;
+            holdTimer = homingHoldDuration;
+        }
+        if (holdActive)
+        {
+            holdTimer -= Time.deltaTime;
+            if (holdTimer <= 0f) { holdActive = false; currentFollowRate = releaseFollowRate; }
+        }
+
+        Vector3 pivotGoal = holdActive ? holdPivot : desiredPivot;
+        currentFollowRate = holdActive ? homingHoldFollowRate : Smooth(currentFollowRate, horizontalFollowRate, 3f);
+        bool easing = holdActive || currentFollowRate < horizontalFollowRate - 0.5f; // holding, or still catching up
+
+        float follow = 1f - Mathf.Exp(-currentFollowRate * Time.deltaTime);
+        smoothedPivot.x = Mathf.Lerp(smoothedPivot.x, pivotGoal.x, follow);
+        smoothedPivot.z = Mathf.Lerp(smoothedPivot.z, pivotGoal.z, follow);
+        // Vertical is rigid normally (jump/fall feel comes from currentY above); while holding or catching up it eases too.
+        smoothedPivot.y = easing ? Mathf.Lerp(smoothedPivot.y, pivotGoal.y, follow) : desiredPivot.y;
+
+        // The lag limit jumps UP instantly during a warp or a hold, then eases back down afterwards.
+        float capTarget = holdActive ? holdMaxLag
+                        : maxFollowLag + ((motor.IsDodging || motor.IsBallDashing) ? warpExtraLag : 0f);
+        lagCap = capTarget > lagCap ? capTarget : Smooth(lagCap, capTarget, 3f);
 
         Vector3 lag = desiredPivot - smoothedPivot; lag.y = 0f;
         if (lag.magnitude > lagCap)
@@ -189,13 +241,17 @@ public class ShadowCameraRig : MonoBehaviour
             smoothedPivot.x = clamped.x;
             smoothedPivot.z = clamped.z;
         }
+        if (holdActive)
+            smoothedPivot.y = Mathf.Clamp(smoothedPivot.y, desiredPivot.y - holdMaxLagVertical, desiredPivot.y + holdMaxLagVertical);
 
         // ---- 6. Place the rig (turns with the mouse) ----
         transform.position = smoothedPivot;
         transform.rotation = Quaternion.Euler(Pitch, Yaw, 0f);
 
         // ---- 7. Place the camera, with wall collision ----
-        Vector3 desiredCam = transform.TransformPoint(new Vector3(currentX, currentY, -backDistance));
+        float backGoal = backDistance - ((motor.IsSliding || motor.IsSpinDashing) ? slidePullIn : 0f);
+        currentBack = Smooth(currentBack, backGoal, slideZoomRate);
+        Vector3 desiredCam = transform.TransformPoint(new Vector3(currentX, currentY, -currentBack));
         Vector3 toCam = desiredCam - smoothedPivot;
         float dist = toCam.magnitude;
         Vector3 dir = toCam / Mathf.Max(dist, 0.0001f);
@@ -216,7 +272,8 @@ public class ShadowCameraRig : MonoBehaviour
         Vector3 hv = motor.Velocity; hv.y = 0f;
         Vector3 camRight = Quaternion.Euler(0f, Yaw, 0f) * Vector3.right;
         float lateral = Mathf.Clamp(Vector3.Dot(hv, camRight) / motor.boostSpeed, -1f, 1f);
-        currentRoll = Smooth(currentRoll, -lateral * maxRoll, rollSmoothing); // Unity: +Z roll = lean left
+        float wallRoll = motor.IsWallRunning ? motor.WallSide * wallRunRoll : 0f; // +Z = lean left, so a wall on the right leans us left (away)
+        currentRoll = Smooth(currentRoll, -lateral * maxRoll + wallRoll, rollSmoothing); // Unity: +Z roll = lean left
         cam.transform.rotation = transform.rotation * Quaternion.Euler(0f, 0f, currentRoll);
 
         UpdateFov();
@@ -293,6 +350,7 @@ public class ShadowCameraRig : MonoBehaviour
             fovOffset = -backFovSub * Mathf.Clamp01(-along / motor.walkSpeed);
 
         if (motor.IsSlamming) fovOffset += slamFovAdd;
+        if (motor.IsSliding || motor.IsSpinDashing) fovOffset = Mathf.Max(fovOffset, slideFovAdd); // like boosting, whichever is bigger
 
         // Smoothed FOV, plus the dodge punch added on top (so the punch isn't smoothed away).
         fovCurrent = Smooth(fovCurrent, baseFov + fovOffset, fovSmoothing);

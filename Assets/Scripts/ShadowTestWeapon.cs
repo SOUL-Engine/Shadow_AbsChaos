@@ -55,6 +55,8 @@ public class ShadowTestWeapon : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!motor.CanShoot) return; // no shooting in spin dash / ball dash / mantle
+
         if (input.FireHeld && Time.time >= nextPrimaryTime && (infiniteAmmo || primaryAmmo > 0))
         {
             nextPrimaryTime = Time.time + 1f / fireRate;

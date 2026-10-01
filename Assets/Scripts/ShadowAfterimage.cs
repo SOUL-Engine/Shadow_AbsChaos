@@ -34,8 +34,14 @@ public class ShadowAfterimage : MonoBehaviour
         clone.name = "Afterimage";
         clone.transform.localScale = source.lossyScale;
 
-        // The clone must be visual only.
+        // The clone must be a FROZEN, visual-only statue of Shadow's current pose:
+        //  * Colliders would block things.
+        //  * An Animator would keep animating the copy (a ghost that runs on the spot).
+        //  * Scripts would run a second copy of their logic.
+        // Bones are plain Transforms, so the pose is already copied; removing the Animator freezes it.
         foreach (Collider c in clone.GetComponentsInChildren<Collider>()) Destroy(c);
+        foreach (Animator a in clone.GetComponentsInChildren<Animator>()) Destroy(a);
+        foreach (MonoBehaviour m in clone.GetComponentsInChildren<MonoBehaviour>()) Destroy(m);
 
         Material mat = new Material(ghostShader);
         foreach (Renderer r in clone.GetComponentsInChildren<Renderer>())

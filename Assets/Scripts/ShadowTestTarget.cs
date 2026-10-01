@@ -7,7 +7,7 @@ using UnityEngine;
 // JOB: A shootable dummy. Flashes red when hit, disappears at 0 health.
 // Throwaway: real enemies replace this later.
 // ============================================================================
-public class ShadowTestTarget : MonoBehaviour
+public class ShadowTestTarget : MonoBehaviour, IDamageable
 {
     public float health = 100f;
     public float flashTime = 0.08f;
@@ -29,6 +29,9 @@ public class ShadowTestTarget : MonoBehaviour
         flashUntil = Time.time + flashTime;
         if (health <= 0f) Destroy(gameObject);
     }
+
+    // IDamageable: how the spin dash, ball dash and homing attack reach this dummy.
+    public void TakeDamage(float damage, Vector3 point) => Hit(damage, point);
 
     void Update()
     {

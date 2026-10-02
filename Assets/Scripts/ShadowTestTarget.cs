@@ -31,7 +31,7 @@ public class ShadowTestTarget : MonoBehaviour, IDamageable
     }
 
     // IDamageable: how the spin dash, ball dash and homing attack reach this dummy.
-    public void TakeDamage(float damage, Vector3 point) => Hit(damage, point);
+    public void TakeDamage(float damage, Vector3 point, DamageKind kind) => Hit(damage, point);
 
     void Update()
     {

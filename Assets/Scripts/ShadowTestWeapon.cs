@@ -38,6 +38,10 @@ public class ShadowTestWeapon : MonoBehaviour
     public float altCooldown = 0.8f;
     public int altAmmo = 8;
 
+    [Header("Ammo caps (ammo scarcity is a pillar)")]
+    public int maxPrimaryAmmo = 150;
+    public int maxAltAmmo = 12;
+
     [Header("Testing")]
     public bool infiniteAmmo = true;   // UNTICK once enemies exist: ammo scarcity is a pillar
     public float muzzleDistance = 0.45f; // how far in front of the arm centre bullets start
@@ -46,6 +50,16 @@ public class ShadowTestWeapon : MonoBehaviour
 
     public int PrimaryAmmo => primaryAmmo;
     public int AltAmmo => altAmmo;
+
+    // Adds ammo up to the caps. Returns false if NOTHING could be added (both already full),
+    // so an ammo pickup can wait for you instead of being wasted.
+    public bool AddAmmo(int bullets, int shells)
+    {
+        int p0 = primaryAmmo, a0 = altAmmo;
+        primaryAmmo = Mathf.Min(maxPrimaryAmmo, primaryAmmo + bullets);
+        altAmmo = Mathf.Min(maxAltAmmo, altAmmo + shells);
+        return primaryAmmo != p0 || altAmmo != a0;
+    }
 
     ShadowMotor motor;
     ShadowInput input;
@@ -112,7 +126,7 @@ public class ShadowTestWeapon : MonoBehaviour
 
             end = hit.point;
             IDamageable d = hit.collider.GetComponentInParent<IDamageable>();
-            if (d != null) d.TakeDamage(dmg, hit.point);
+            if (d != null) d.TakeDamage(dmg, hit.point, DamageKind.Gun);
         }
         SpawnTracer(muzzle, end, tracerColor);
     }

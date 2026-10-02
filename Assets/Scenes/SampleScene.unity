@@ -897,10 +897,10 @@ MonoBehaviour:
   jumpBuffer: 0.1
   airborneGrace: 0.12
   minLandingSpeed: 5
-  boostMax: 100
-  boostDrainPerSec: 35
-  boostRegenPerSec: 20
-  boostRegenDelay: 0.75
+  boostMax: 182.8
+  boostDrainPerSec: 45.9
+  boostRegenPerSec: 22
+  boostRegenDelay: 0.5
   boostUnlockFraction: 0.3
   dodgeDistance: 7.3
   dodgeSpeed: 54.3
@@ -946,8 +946,6 @@ MonoBehaviour:
   airDashExitSpeed: 12
   airDashRise: 1.4
   airDashExitLift: 7
-  airDashDamage: 20
-  ballHitRadius: 0.9
   airPressMinTime: 0.12
   dashMinGroundDistance: 1.2
   airDashStaminaCost: 13
@@ -972,11 +970,11 @@ MonoBehaviour:
   slideGroundPush: 6
   slideSnapDistance: 0.4
   slideSnapSpeed: 12
-  spinDashStartSpeed: 18
-  spinDashSpeed: 24
-  spinDashAccel: 40
-  spinDashSteerDegPerSec: 110
-  spinDashDrainMultiplier: 0.5
+  spinDashStartSpeed: 22.6
+  spinDashSpeed: 30.4
+  spinDashAccel: 50.4
+  spinDashSteerDegPerSec: 141.7
+  spinDashDrainMultiplier: 0.35
   spinDashMinGauge: 10
   spinDashDamage: 15
   spinDashHitInterval: 0.35
@@ -1079,7 +1077,9 @@ MonoBehaviour:
   altRange: 30
   altCooldown: 0.8
   altAmmo: 8
-  infiniteAmmo: 1
+  maxPrimaryAmmo: 150
+  maxAltAmmo: 12
+  infiniteAmmo: 0
   muzzleDistance: 0.45
   tracerWidth: 0.03
   tracerLife: 0.06
@@ -2128,6 +2128,63 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1943202956}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1001 &579611706164419998
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 138905866453099300, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_Name
+      value: GunRusher
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 7.26
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.31
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -15.39
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1905918227668544058, guid: c6dd15292fc16504fb62c95878725546, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c6dd15292fc16504fb62c95878725546, type: 3}
 --- !u!1001 &1052318960391630920
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2566,3 +2623,4 @@ SceneRoots:
   - {fileID: 761502120}
   - {fileID: 665671477}
   - {fileID: 1458748581}
+  - {fileID: 579611706164419998}

@@ -213,7 +213,7 @@ public partial class ShadowMotor
             if (spinHitTimes.TryGetValue(d, out float last) && Time.time - last < spinDashHitInterval) continue;
 
             spinHitTimes[d] = Time.time;
-            d.TakeDamage(spinDashDamage, col.ClosestPoint(center));
+            d.TakeDamage(spinDashDamage, col.ClosestPoint(center), DamageKind.SpinDash);
         }
     }
 }

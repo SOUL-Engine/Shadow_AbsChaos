@@ -9,7 +9,8 @@ using UnityEngine;
 //   * An enemy is locked on (HUD red box) -> HOMING ATTACK: curves into it, damages
 //     it, then BOUNCES UP a little before falling again.
 //   * No target -> BALL DASH: a short chaos-warp style shot along the crosshair
-//     direction. It damages anything it passes through and COSTS STAMINA.
+//     direction. It is a MOVEMENT technique, NOT an attack: it deals no damage and
+//     enemies killed near it drop nothing. It COSTS STAMINA.
 // Ball forms cannot shoot (see ShadowMotor.CanShoot).
 //
 // STAMINA IS THE BOOST GAUGE (one resource): boosting, spin dash, slam and the ball
@@ -60,14 +61,12 @@ public partial class ShadowMotor
     [Range(0f, 1f)]
     public float homingResolveControl = 0.2f;    // ...this fraction (0 = locked on the bounce, 1 = full control)
 
-    [Header("Ball Dash (no target)")]
-    public float airDashDistance = 9f;
-    public float airDashSpeed = 60f;
-    public float airDashExitSpeed = 12f;         // speed carried out of the dash
+    [Header("Ball Dash (no target): a MOVEMENT tech, no damage")]
+    public float airDashDistance = 14f;          // reach in metres (was 9)
+    public float airDashSpeed = 70f;             // 14 m takes about 0.2 s
+    public float airDashExitSpeed = 14f;         // speed carried out of the dash
     public float airDashRise = 1.4f;             // metres of height gained DURING the dash (rises as it travels)
     public float airDashExitLift = 7f;           // upward speed when the dash ends: about +0.7 m more. Together ~ a double jump (2.2 m)
-    public float airDashDamage = 20f;            // damage to anything the ball passes through
-    public float ballHitRadius = 0.9f;
     public float airPressMinTime = 0.12f;        // seconds after leaving the ground before a second press counts
     public float dashMinGroundDistance = 1.2f;   // an untargeted dash needs this much height above the floor
 
@@ -112,7 +111,6 @@ public partial class ShadowMotor
     bool ballHoming;
     Vector3 ballDir = Vector3.forward;
     float ballRemaining, ballElapsed;
-    readonly HashSet<IDamageable> ballHit = new HashSet<IDamageable>();
     readonly HashSet<IDamageable> seenTargets = new HashSet<IDamageable>();
 
     // ---------------------------------------------------------------------
@@ -271,7 +269,6 @@ public partial class ShadowMotor
         Mode = ShadowMoveMode.BallDash;
         BallDashStartedThisFrame = true;
         lastJumpPressTime = -10f;          // the press is used up: don't also buffer a jump
-        ballHit.Clear();
 
         ShadowAfterimage.Spawn(visual, chaosColor, ghostLife);
         lastGhostPos = transform.position;
@@ -315,7 +312,6 @@ public partial class ShadowMotor
 
         horizontalVel = new Vector3(vel.x, 0f, vel.z);
         verticalVel = vel.y;
-        DamageAlongBall();
     }
 
     // After the move: leave the trail, and end an untargeted dash when it has finished or hit something solid.
@@ -326,32 +322,11 @@ public partial class ShadowMotor
         if (!ballHoming && (ballRemaining <= 0.001f || blocked)) EndBallDash();
     }
 
-    // The ball damages anything it passes through. (The homing target itself takes homingDamage
-    // on arrival instead, so it isn't hit twice.)
-    void DamageAlongBall()
-    {
-        Vector3 chest = transform.position + Vector3.up;
-        int n = Physics.OverlapSphereNonAlloc(chest, ballHitRadius, overlapBuf, aimMask,
-                                              QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < n; i++)
-        {
-            Collider col = overlapBuf[i];
-            if (col.transform.IsChildOf(transform)) continue;
-
-            IDamageable d = col.GetComponentInParent<IDamageable>();
-            if (d == null || ballHit.Contains(d)) continue;
-            if (ballHoming && d == ballTargetDamageable) continue;
-
-            ballHit.Add(d);
-            d.TakeDamage(airDashDamage, col.ClosestPoint(chest));
-        }
-    }
-
     // HOMING HIT: damage, bounce UP so Shadow gains a little height, and (if it's a NEW enemy)
     // extend the chain and regain stamina by the chain's table entry.
     void HomingHit(Vector3 point)
     {
-        if (ballTargetDamageable != null) ballTargetDamageable.TakeDamage(homingDamage, point);
+        if (ballTargetDamageable != null) ballTargetDamageable.TakeDamage(homingDamage, point, DamageKind.Homing);
         HomingHitThisFrame = true;
 
         // Chain: only a different enemy than the last one counts, so you can't farm stamina on one dummy.

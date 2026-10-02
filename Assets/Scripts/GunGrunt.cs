@@ -24,13 +24,11 @@ using UnityEngine;
 // ============================================================================
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
+[RequireComponent(typeof(EnemyDrops))]   // what he drops is tuned on the EnemyDrops component
 public class GunGrunt : MonoBehaviour, IDamageable
 {
-    [Header("Health and drops")]
+    [Header("Health (drops are set on the EnemyDrops component)")]
     public float maxHealth = 40f;
-    [Range(0f, 1f)]
-    public float healthDropChance = 0.25f; // chance of a health pickup on death
-    public float healthDropAmount = 10f;
 
     [Header("Movement (simple steering, no NavMesh yet)")]
     public float moveSpeed = 4.5f;
@@ -54,6 +52,7 @@ public class GunGrunt : MonoBehaviour, IDamageable
     State state = State.Idle;
     Rigidbody rb;
     CapsuleCollider col;
+    EnemyDrops drops;
     ShadowHealth player;
     LineRenderer laser;
     Renderer[] rends;
@@ -71,6 +70,7 @@ public class GunGrunt : MonoBehaviour, IDamageable
     {
         rb = GetComponent<Rigidbody>();
         col = GetComponent<CapsuleCollider>();
+        drops = GetComponent<EnemyDrops>();
         rb.freezeRotation = true;                              // he turns by script, physics must not tip him over
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
@@ -86,7 +86,7 @@ public class GunGrunt : MonoBehaviour, IDamageable
 
     void Start()
     {
-        player = FindFirstObjectByType<ShadowHealth>();
+        player = FindAnyObjectByType<ShadowHealth>();
     }
 
     // ---------------------------------------------------------------- AI
@@ -196,7 +196,7 @@ public class GunGrunt : MonoBehaviour, IDamageable
         {
             end = hit.point;
             ShadowHealth h = hit.collider.GetComponentInParent<ShadowHealth>();
-            if (h != null) h.TakeDamage(damage, hit.point);   // warping / moving after the lock = a clean miss
+            if (h != null) h.TakeDamage(damage, hit.point, DamageKind.Enemy);   // warping / moving after the lock = a clean miss
         }
         SpawnShotLine(origin, end);
 
@@ -250,19 +250,20 @@ public class GunGrunt : MonoBehaviour, IDamageable
 
     // ---------------------------------------------------------------- damage
     // IDamageable: pistol, shotgun, spin dash, ball dash and homing attack all arrive here.
-    public void TakeDamage(float amount, Vector3 point)
+    public void TakeDamage(float amount, Vector3 point, DamageKind kind)
     {
         if (dead) return;
         health -= amount;
         flashUntil = Time.time + 0.08f;
         if (state == State.Idle) state = State.Engage;         // being shot wakes him up
-        if (health <= 0f) Die();
+        if (health <= 0f) Die(kind);
     }
 
-    void Die()
+    // `kind` is how the KILLING blow was dealt: it decides the drop (see EnemyDrops).
+    void Die(DamageKind kind)
     {
         dead = true;
-        if (Random.value <= healthDropChance) HealthPickup.Spawn(col.bounds.center, healthDropAmount);
+        drops.Drop(kind, col.bounds.center);
         Destroy(gameObject);
     }
 

@@ -58,7 +58,7 @@ public class ShadowHealth : MonoBehaviour, IDamageable
     }
 
     // IDamageable. Enemy shots, projectiles and hazards all call this.
-    public void TakeDamage(float amount, Vector3 point)
+    public void TakeDamage(float amount, Vector3 point, DamageKind kind)
     {
         if (IsDead || amount <= 0f) return;
         if (motor.IsInvulnerable) return;       // Chaos warp: untouchable

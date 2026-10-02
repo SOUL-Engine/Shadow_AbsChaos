@@ -55,24 +55,28 @@ public abstract class PickupBase : MonoBehaviour
         if (TryApply(other)) Destroy(gameObject);
     }
 
-    // Builds a pickup out of a primitive sphere at runtime.
+    // Builds a pickup at runtime with NO prefab.
     //
-    // NOTE (the v0.8 bug): the sphere primitive already carries a SphereCollider. We KEEP it and make it
-    // the trigger. The old code destroyed it and then added the pickup, but Destroy only takes effect at
-    // the end of the frame, so Unity still saw the old collider, did not add a new one, and then refused
-    // to remove the one the pickup depended on.
+    // The root object holds only the trigger collider, the Rigidbody and the pickup script, and
+    // nothing ever removes them. The visible sphere is a separate CHILD, so removing ITS collider
+    // is safe (nothing depends on it).
     protected static T Create<T>(string objectName, Vector3 position, Color color) where T : PickupBase
     {
-        GameObject g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        g.name = objectName;
-        g.transform.position = position;
-        g.transform.localScale = Vector3.one * 0.45f;
-        g.GetComponent<Renderer>().material.color = color;
+        GameObject root = new GameObject(objectName);
+        root.transform.position = position;
 
-        SphereCollider sc = g.GetComponent<SphereCollider>();
-        sc.isTrigger = true;
-        sc.radius = 2.5f;              // local to the 0.45 scale: about 1.1 m in the world
+        SphereCollider trigger = root.AddComponent<SphereCollider>();
+        trigger.isTrigger = true;
+        trigger.radius = 1.1f;                 // world metres (the root is not scaled)
 
-        return g.AddComponent<T>();    // finds the SphereCollider above, and adds only the Rigidbody
+        T pickup = root.AddComponent<T>();     // finds the collider above, adds only the Rigidbody
+
+        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Destroy(visual.GetComponent<Collider>());              // safe: a child's collider
+        visual.transform.SetParent(root.transform, false);
+        visual.transform.localScale = Vector3.one * 0.45f;
+        visual.GetComponent<Renderer>().material.color = color;
+
+        return pickup;
     }
 }

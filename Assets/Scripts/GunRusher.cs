@@ -43,6 +43,7 @@ public class GunRusher : MonoBehaviour, IDamageable
     [Header("Charge (telegraphed)")]
     public float chargeTriggerRange = 16f;       // starts winding up when you are this close (and visible)
     public float telegraphTime = 0.75f;          // the lane TRACKS you for this long...
+    public float lockedTurnRate = 45f;           // the frozen lane can still swing toward you this many degrees/second (0 = truly fixed)
     public float lockTime = 0.25f;               // ...then freezes (bright) for this long, then he goes
     public float chargeSpeed = 24f;
     public float chargeDistance = 24f;           // how far a charge runs if nothing stops it
@@ -142,6 +143,10 @@ public class GunRusher : MonoBehaviour, IDamageable
 
             case State.Locked:
                 desiredVel = Vector3.zero;
+                // A little "moving room": the lane may still swing toward you at lockedTurnRate degrees/second.
+                if (fd > 0.01f)
+                    lockedDir = Vector3.RotateTowards(lockedDir, flat / fd, lockedTurnRate * Mathf.Deg2Rad * Time.deltaTime, 0f);
+                Face(lockedDir);
                 DrawLane(true);                                  // frozen and bright: MOVE NOW
                 timer -= Time.deltaTime;
                 if (timer <= 0f) BeginCharge();

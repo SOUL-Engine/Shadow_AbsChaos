@@ -112,7 +112,8 @@ public partial class ShadowMotor : MonoBehaviour
     public float spinDegPerSec = 1080f;     // placeholder ball spin speed (the real model will animate this)
 
     [Header("Aim / World Queries")]
-    public LayerMask aimMask = ~0;    // layers the crosshair ray, lock-on and headroom checks can see.
+    public LayerMask aimMask = ~0;
+    public LayerMask shotMask = ~0;    // layers the crosshair ray, lock-on and headroom checks can see.
                                       // Shadow's own colliders are ignored in code, so Everything is fine.
     public float aimMaxDistance = 200f;
     public float minAimDistance = 3f; // closer than this the arm just points parallel to the camera
@@ -643,7 +644,7 @@ public partial class ShadowMotor : MonoBehaviour
         // Anything more than 0.75 m behind Shadow's depth (as seen from the camera) doesn't count.
         float minDepth = Vector3.Dot(chest - camT.position, camT.forward) - 0.75f;
 
-        int n = Physics.RaycastNonAlloc(camT.position, dir, aimHits, maxDist, aimMask,
+        int n = Physics.RaycastNonAlloc(camT.position, dir, aimHits, maxDist, shotMask,
                                         QueryTriggerInteraction.Ignore);
         best = default;
         float bestDist = float.MaxValue;

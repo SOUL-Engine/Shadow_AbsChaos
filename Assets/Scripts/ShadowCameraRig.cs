@@ -52,6 +52,12 @@ public class ShadowCameraRig : MonoBehaviour
     public float sideCommitDelay = 0.08f; // a new side must be held this long before swapping
     public float sideSmoothing = 10f;     // higher = camera slides across faster
 
+    [Header("Aim Lock (keeps the crosshair on the same world point when the camera swaps shoulders)")]
+    [Range(0f, 1f)] public float aimLockStrength = 1f;     // 0 = off, 1 = fully keep the aimed point
+    public float aimLockMinDistance = 12f;   // aimed points closer than this are treated as this far (stops violent swings at point-blank)
+    public float aimLockMaxDistance = 200f;  // ...and farther than this as this far
+    public float aimLockMaxDegPerSec = 240f; // the most the view may turn per second to keep the point
+
     [Header("Strafe Roll")]
     public float maxRoll = 3.5f;     // degrees of tilt at full sideways speed. NEGATE if it leans the wrong way.
     public float rollSmoothing = 8f;
@@ -143,6 +149,9 @@ public class ShadowCameraRig : MonoBehaviour
     // LateUpdate runs AFTER every Update, so the player has already moved this frame.
     void LateUpdate()
     {
+        // How far away was the thing under the crosshair last frame? (the camera has not moved yet this frame)
+        float lastAimDistance = Vector3.Distance(cam.transform.position, motor.AimPoint);
+
         // ---- 1. Mouse look ----
         Vector2 look = input.Look;                 // already per-frame: do NOT multiply by deltaTime
         Yaw += look.x * sensitivity;
@@ -164,6 +173,7 @@ public class ShadowCameraRig : MonoBehaviour
         // While wall running, keep Shadow on the WALL side of the screen so the camera sits clear of the wall.
         if (motor.IsWallRunning) committedSide = motor.WallSide;
         float targetX = -committedSide * sideOffset; // camera goes to the OPPOSITE side of where Shadow should appear
+        float prevX = currentX;                      // remembered for the aim lock (step 5b)
         currentX = Smooth(currentX, targetX, sideSmoothing);
 
         // ---- 4. Camera height: standing / jumping / falling / landing ----
@@ -243,6 +253,10 @@ public class ShadowCameraRig : MonoBehaviour
         }
         if (holdActive)
             smoothedPivot.y = Mathf.Clamp(smoothedPivot.y, desiredPivot.y - holdMaxLagVertical, desiredPivot.y + holdMaxLagVertical);
+
+        // ---- 5b. Aim lock: keep the crosshair on the same world point while the camera slides to the other shoulder ----
+        if (aimLockStrength > 0f && Mathf.Abs(currentX - prevX) > 0.0001f)
+            KeepAimPoint(prevX, currentX, lastAimDistance);
 
         // ---- 6. Place the rig (turns with the mouse) ----
         transform.position = smoothedPivot;
@@ -356,6 +370,37 @@ public class ShadowCameraRig : MonoBehaviour
         fovCurrent = Smooth(fovCurrent, baseFov + fovOffset, fovSmoothing);
         fovKick = Smooth(fovKick, 0f, fovKickDecay);
         cam.fieldOfView = fovCurrent + fovKick;
+    }
+
+    // Where the camera would sit for a given yaw / pitch / sideways offset (same maths as step 7, without collision).
+    Vector3 CameraPositionFor(float yaw, float pitch, float x)
+        => smoothedPivot + Quaternion.Euler(pitch, yaw, 0f) * new Vector3(x, currentY, -backDistance);
+
+    // THE AIM LOCK. Moving the camera sideways slides the crosshair across the world (by the full shoulder
+    // distance, at ANY range). To stop that we turn the view just enough that the ray from the NEW camera
+    // position still passes through the world point that was under the crosshair a moment ago.
+    // Mouse movement this frame is kept: we start from the current yaw / pitch, not last frame's.
+    void KeepAimPoint(float oldX, float newX, float aimDistance)
+    {
+        // 1. The point that was under the crosshair: along the current view, from the OLD camera position.
+        //    Its distance is clamped so a point-blank target can't cause a huge swing.
+        float d = Mathf.Clamp(aimDistance, aimLockMinDistance, aimLockMaxDistance);
+        Vector3 held = CameraPositionFor(Yaw, Pitch, oldX) + Quaternion.Euler(Pitch, Yaw, 0f) * Vector3.forward * d;
+
+        // 2. Find the yaw / pitch that points the NEW camera at that point. Turning the view also moves the
+        //    camera (it orbits the pivot), so we repeat a few times until it settles.
+        float yaw = Yaw, pitch = Pitch;
+        for (int i = 0; i < 6; i++)
+        {
+            Vector3 to = held - CameraPositionFor(yaw, pitch, newX);
+            yaw = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            pitch = Mathf.Atan2(-to.y, Mathf.Sqrt(to.x * to.x + to.z * to.z)) * Mathf.Rad2Deg; // + = looking down
+        }
+
+        // 3. Apply it, limited so the view never whips, and scaled by aimLockStrength.
+        float maxStep = aimLockMaxDegPerSec * Time.deltaTime;
+        Yaw += Mathf.Clamp(Mathf.DeltaAngle(Yaw, yaw) * aimLockStrength, -maxStep, maxStep);
+        Pitch = Mathf.Clamp(Pitch + Mathf.Clamp((pitch - Pitch) * aimLockStrength, -maxStep, maxStep), minPitch, maxPitch);
     }
 
     // Frame-rate independent smoothing (same feel at 60 or 240 fps).

@@ -125,8 +125,7 @@ public class ShadowTestWeapon : MonoBehaviour
             }
 
             end = hit.point;
-            IDamageable d = hit.collider.GetComponentInParent<IDamageable>();
-            if (d != null) d.TakeDamage(dmg, hit.point, DamageKind.Gun);
+            Damage.Deal(hit.collider, dmg, hit.point, DamageKind.Gun);   // applies head / limb multipliers on a Hurtbox
         }
         SpawnTracer(muzzle, end, tracerColor);
     }

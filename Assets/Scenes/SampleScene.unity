@@ -1188,6 +1188,49 @@ MonoBehaviour:
   - 0.2
   - 0.4
   - 0.667
+  chargeStartMaxSpeed: 2.5
+  chargeCommitDelay: 0.1
+  chargeTime: 2.2
+  chargeMinFraction: 0.25
+  chargeAimDegPerSec: 360
+  chargeRelockTime: 1.5
+  chargedPeakSpeed: 50
+  chargedBurstMaxTime: 1.5
+  chargedSpeedCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  chargedTurnDegPerSec: 145
+  chargedGripDegPerSec: 50
+  chargedDashDamage: 45
+  chargedHitRadius: 2
+  chargedDashHealthDrops: 2
+  chargedCrashGrace: 0.15
+  chargedCrashFraction: 0.4
+  chargeAudio: {fileID: 0}
+  chargeReadyClip: {fileID: 0}
+  launchClip: {fileID: 0}
+  chargePitchRange: {x: 0.8, y: 2}
   slideHeight: 1
   slideStartSpeed: 12
   slideDecel: 7
@@ -1334,6 +1377,7 @@ MonoBehaviour:
   staminaLowColor: {r: 1, g: 0.45, b: 0.1, a: 1}
   warpColor: {r: 1, g: 0.12, b: 0.08, a: 1}
   warpRechargeColor: {r: 0.45, g: 0.06, b: 0.05, a: 1}
+  chargeColor: {r: 1, g: 0.8, b: 0.15, a: 1}
   debugRingDepth: 12
 --- !u!114 &816108485
 MonoBehaviour:
@@ -2896,6 +2940,10 @@ MonoBehaviour:
   slidePullIn: 1
   slideFovAdd: 14
   slideZoomRate: 8
+  chargeFovAdd: 16
+  chargedDashFovAdd: 26
+  chargeLaunchFovKick: 20
+  chargeShake: 0.07
   horizontalFollowRate: 15
   maxFollowLag: 1.4
   warpExtraLag: 2.5

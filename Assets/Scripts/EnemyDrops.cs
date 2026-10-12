@@ -30,6 +30,11 @@ public class EnemyDrops : MonoBehaviour
     public int homingKillBullets = 10;
     public int homingKillShells = 0;
 
+    [Header("Killed with the CHARGED SPIN DASH -> HEALTH (capped per launch)")]
+    public float chargedKillHealth = 15f;
+    // Set by the motor at every launch: the most health pickups that ONE charged dash may produce in total.
+    public static int ChargedHealthBudget;
+
     // Called by the enemy when it dies. `kind` is the kind of the hit that killed it.
     public void Drop(DamageKind kind, Vector3 position)
     {
@@ -48,6 +53,14 @@ public class EnemyDrops : MonoBehaviour
             case DamageKind.Homing:
                 if (Random.value <= homingKillAmmoChance)
                     AmmoPickup.Spawn(position, homingKillBullets, homingKillShells);
+                break;
+                
+            case DamageKind.ChargedDash:
+                if (ChargedHealthBudget > 0)
+                {
+                    ChargedHealthBudget--;
+                    HealthPickup.Spawn(position, chargedKillHealth);
+                }
                 break;
         }
     }

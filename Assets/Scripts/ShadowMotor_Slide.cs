@@ -58,6 +58,9 @@ public partial class ShadowMotor
     {
         if (Mode != ShadowMoveMode.Normal || !GroundedForSlide()) return;
 
+        // Standing still + Shift is the CHARGED dash (ShadowMotor_ChargedDash.cs), not a slide.
+        if (input.BoostHeld && horizontalVel.magnitude <= chargeStartMaxSpeed) return;
+
         float speed = horizontalVel.magnitude;
         if (speed < 2f && !hasInput) return; // standing still: nothing to slide
 
@@ -169,6 +172,7 @@ public partial class ShadowMotor
     // Back to Normal and stand up. keepMomentum = true makes air steering keep your speed.
     void ExitSlide(bool keepMomentum)
     {
+        if (chargeAmount > 0f) { chargeAmount = 0f; StopChargeAudio(); } // any exit clears a rev
         Mode = ShadowMoveMode.Normal;
         SetControllerHeight(standingHeight);
         if (keepMomentum) carryMomentum = true;

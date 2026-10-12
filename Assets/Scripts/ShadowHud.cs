@@ -27,6 +27,7 @@ public class ShadowHud : MonoBehaviour
     public Color staminaLowColor = new Color(1f, 0.45f, 0.1f);   // orange: below the dash cost
     public Color warpColor = new Color(1f, 0.12f, 0.08f);        // Shadow red
     public Color warpRechargeColor = new Color(0.45f, 0.06f, 0.05f);
+    public Color chargeColor = new Color(1f, 0.8f, 0.15f);       // gold: the charged dash rev
 
     [Header("Homing Sensor Debug")]
     public float debugRingDepth = 12f; // metres: depth the aim-zone ring is drawn at when nothing is locked
@@ -111,10 +112,20 @@ public class ShadowHud : MonoBehaviour
         Box(st, bg);
         bool canDash = motor.Stamina >= motor.AirDashStaminaCost;
         Color barColor = motor.IsBoostLocked ? Color.red : (canDash ? staminaColor : staminaLowColor);
-        Box(new Rect(st.x + 2f, st.y + 2f, (st.width - 4f) * motor.BoostNormalized, st.height - 4f), barColor);
+        float barFill = motor.BoostNormalized;
+        if (motor.IsCharging)
+        {
+            barFill = motor.ChargeProgress;   // while revving, the bar IS the charge
+            barColor = motor.ChargeProgress >= 1f
+                ? Color.Lerp(chargeColor, Color.white, Mathf.PingPong(Time.time * 6f, 1f)) // flashing = FULL, release Shift
+                : chargeColor;
+        }
+        Box(new Rect(st.x + 2f, st.y + 2f, (st.width - 4f) * barFill, st.height - 4f), barColor);
         float tickX = st.x + 2f + (st.width - 4f) * (motor.AirDashStaminaCost / motor.StaminaMax);
         Box(new Rect(tickX - 1f, st.y, 2f, st.height), Color.white); // white tick = cost of one ball dash
-        Label(x + w + 8f, stY, motor.IsBoostLocked ? "STAMINA  LOCKED" : "STAMINA");
+        string stLabel = motor.IsCharging ? (motor.ChargeProgress >= 1f ? "CHARGED - RELEASE SHIFT" : "CHARGING...")
+                       : (motor.IsBoostLocked ? "STAMINA  LOCKED" : "STAMINA");
+        Label(x + w + 8f, stY, stLabel);
 
         // Homing chain counter and the last stamina gain, next to the label.
         if (motor.HomingChain > 0)

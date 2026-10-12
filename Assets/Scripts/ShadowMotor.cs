@@ -34,7 +34,9 @@ public enum ShadowMoveMode
     Slam,      // Ctrl in the air
     BallDash,  // Jump again in the air: homing attack / ball dash (damages, can't shoot)
     WallRun,   // timed run along a wall
-    Mantle     // pulling up onto a ledge
+    Mantle,    // pulling up onto a ledge
+    Charging,    // standing still revving a charged spin dash (ball form, can't shoot)
+    ChargedDash  // the launched burst (ball form, damages, can't shoot)
 }
 
 [RequireComponent(typeof(CharacterController))]
@@ -133,7 +135,9 @@ public partial class ShadowMotor : MonoBehaviour
     // The weapon checks this: no shooting in ball forms or while pulling up onto a ledge.
     public bool CanShoot => Mode != ShadowMoveMode.SpinDash
                          && Mode != ShadowMoveMode.BallDash
-                         && Mode != ShadowMoveMode.Mantle;
+                         && Mode != ShadowMoveMode.Mantle
+                         && Mode != ShadowMoveMode.Charging
+                         && Mode != ShadowMoveMode.ChargedDash;
 
     // The health system (not built yet) must check this before applying ANY damage.
     public bool IsInvulnerable => IsDodging || Time.time < invulnUntil
@@ -259,6 +263,9 @@ public partial class ShadowMotor : MonoBehaviour
             TryStartSlide(wishDir, hasInput);
         }
 
+        // ---- 6b. Charged spin dash: standing still + Ctrl + Shift starts the rev ----
+        ChargeDashUpdate();
+
         // ---- 7. Automatic airborne abilities: pull up onto a ledge, else start a wall run ----
         if (Mode == ShadowMoveMode.Normal && IsAirborne && !jumpFired)
         {
@@ -288,6 +295,8 @@ public partial class ShadowMotor : MonoBehaviour
             }
             case ShadowMoveMode.Slide:
             case ShadowMoveMode.SpinDash: SlideStep(wishDir, hasInput); break;
+            case ShadowMoveMode.Charging:    ChargeStep(wishDir, hasInput); break;
+            case ShadowMoveMode.ChargedDash: ChargedDashStep(wishDir, hasInput); break;
             case ShadowMoveMode.BallDash:  BallDashStep(); break;
             case ShadowMoveMode.WallRun:   WallRunStep(wishDir, hasInput); break;
             case ShadowMoveMode.Mantle:    MantleStep(); break;
@@ -381,7 +390,9 @@ public partial class ShadowMotor : MonoBehaviour
     {
         bool groundedMode = Mode == ShadowMoveMode.Normal
                          || Mode == ShadowMoveMode.Slide
-                         || Mode == ShadowMoveMode.SpinDash;
+                         || Mode == ShadowMoveMode.SpinDash
+                         || Mode == ShadowMoveMode.Charging
+                         || Mode == ShadowMoveMode.ChargedDash;
         bool canJump = groundedMode && Time.time - lastGroundedTime <= coyoteTime;
         bool wantsJump = Time.time - lastJumpPressTime <= jumpBuffer;
         if (!canJump || !wantsJump) return false;
@@ -423,7 +434,8 @@ public partial class ShadowMotor : MonoBehaviour
     {
         if (dodgeCharges <= 0 || Time.time < nextDodgeTime) return;
 
-        if (Mode == ShadowMoveMode.Slide || Mode == ShadowMoveMode.SpinDash)
+        if (Mode == ShadowMoveMode.Slide || Mode == ShadowMoveMode.SpinDash
+            || Mode == ShadowMoveMode.Charging || Mode == ShadowMoveMode.ChargedDash)
         {
             if (!HasHeadroom()) return; // can't stand up here
             ExitSlide(false);
@@ -545,6 +557,7 @@ public partial class ShadowMotor : MonoBehaviour
         dodgeCharges = maxDodgeCharges;
         dodgeRecharge = 0f;
         invulnUntil = 0f;
+        ResetChargeDash();
     }
 
     // ---------------- Facing and body pose ----------------
@@ -564,6 +577,8 @@ public partial class ShadowMotor : MonoBehaviour
             case ShadowMoveMode.BallDash: targetYaw = YawOf(ballDir, targetYaw); break;
             case ShadowMoveMode.WallRun:  targetYaw = YawOf(wallTangent, targetYaw); break;
             case ShadowMoveMode.Mantle:   targetYaw = YawOf(mantleInward, targetYaw); break;
+            case ShadowMoveMode.Charging:
+            case ShadowMoveMode.ChargedDash: targetYaw = YawOf(chargedHeading, targetYaw); break;
             default:
                 if (IsBoosting && horizontalVel.sqrMagnitude > 1f) // >1 avoids atan2(0,0) snapping north
                 {
@@ -578,8 +593,12 @@ public partial class ShadowMotor : MonoBehaviour
         bodyYaw = Mathf.MoveTowardsAngle(bodyYaw, targetYaw, turnSpeed * Time.deltaTime);
 
         // Placeholder ball spin (the real model will play a ball animation instead).
-        bool spinning = Mode == ShadowMoveMode.SpinDash || Mode == ShadowMoveMode.BallDash;
-        spinAngle = spinning ? (spinAngle + spinDegPerSec * Time.deltaTime) % 360f : 0f;
+        bool spinning = Mode == ShadowMoveMode.SpinDash || Mode == ShadowMoveMode.BallDash
+                     || Mode == ShadowMoveMode.Charging || Mode == ShadowMoveMode.ChargedDash;
+        // The ball spins faster as the rev builds, and faster still during the burst.
+        float spinRate = spinDegPerSec * (Mode == ShadowMoveMode.Charging ? 1f + 3f * chargeAmount
+                                        : Mode == ShadowMoveMode.ChargedDash ? 2f : 1f);
+        spinAngle = spinning ? (spinAngle + spinRate * Time.deltaTime) % 360f : 0f;
         visual.rotation = Quaternion.Euler(0f, bodyYaw, 0f) * Quaternion.Euler(spinAngle, 0f, 0f);
 
         ApplyVisualPose();
@@ -604,12 +623,19 @@ public partial class ShadowMotor : MonoBehaviour
                 scale = Vector3.one * 0.6f;
                 y = visualBasePos.y * 0.6f;
                 break;
+            case ShadowMoveMode.Charging:
+            case ShadowMoveMode.ChargedDash:
+                scale = Vector3.one * 0.6f;
+                y = visualBasePos.y * 0.6f;
+                break;
             case ShadowMoveMode.BallDash:
                 scale = Vector3.one * 0.6f;
                 break;
         }
         visual.localScale = Vector3.Scale(visualBaseScale, scale);
-        visual.localPosition = new Vector3(visualBasePos.x, y, visualBasePos.z);
+        float jitter = Mode == ShadowMoveMode.Charging ? 0.05f * chargeAmount : 0f; // the ball vibrates as the rev builds
+        visual.localPosition = new Vector3(visualBasePos.x + Random.Range(-jitter, jitter), y,
+                                           visualBasePos.z + Random.Range(-jitter, jitter));
     }
 
     // ---------------- Aim ----------------

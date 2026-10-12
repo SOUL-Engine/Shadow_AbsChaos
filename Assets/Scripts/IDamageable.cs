@@ -20,7 +20,7 @@ using UnityEngine;
 // and write a TakeDamage method. The collider can be on the same object or on a
 // child: the search walks UP the hierarchy from whatever collider it hits.
 // ============================================================================
-public enum DamageKind { Gun, SpinDash, Homing, Enemy, Other }
+public enum DamageKind { Gun, SpinDash, Homing, Enemy, Other, ChargedDash }
 
 public interface IDamageable
 {

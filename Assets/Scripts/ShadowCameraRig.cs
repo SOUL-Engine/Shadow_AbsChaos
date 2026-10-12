@@ -69,6 +69,12 @@ public class ShadowCameraRig : MonoBehaviour
     public float slideFovAdd = 14f;      // FOV widening while sliding / spin dashing (like boosting)
     public float slideZoomRate = 8f;     // how fast the pull-in eases in and out
 
+    [Header("Charged Spin Dash")]
+    public float chargeFovAdd = 16f;        // FOV widening at FULL charge (builds as you rev)
+    public float chargedDashFovAdd = 26f;   // FOV while the burst is running
+    public float chargeLaunchFovKick = 20f; // instant punch on release
+    public float chargeShake = 0.07f;       // camera shake in metres at full charge
+
     [Header("Follow Lag")]
     public float horizontalFollowRate = 10f; // LOWER = more lag. Lag distance is about speed / rate
     public float maxFollowLag = 2f;          // hard cap (metres) so Shadow can never outrun the camera
@@ -168,6 +174,8 @@ public class ShadowCameraRig : MonoBehaviour
         }
         if (motor.DodgeStartedThisFrame || motor.BallDashStartedThisFrame) fovKick = dodgeFovKick;
 
+        if (motor.ChargedDashLaunchedThisFrame) fovKick = chargeLaunchFovKick;
+
         // ---- 3. Screen side (sideways offset) ----
         UpdateSide(motor.MoveInput);
         // While wall running, keep Shadow on the WALL side of the screen so the camera sits clear of the wall.
@@ -188,7 +196,7 @@ public class ShadowCameraRig : MonoBehaviour
         }
         else if (!motor.IsAirborne)
         {
-            targetY = baseHeight - ((motor.IsSliding || motor.IsSpinDashing) ? slideCameraDrop : 0f);                    // standing: spring back up quickly after a landing
+            targetY = baseHeight - (motor.IsLowProfile ? slideCameraDrop : 0f);                    // standing: spring back up quickly after a landing
             yRate = landRecoverRate;
         }
         else if (falling)
@@ -241,7 +249,7 @@ public class ShadowCameraRig : MonoBehaviour
 
         // The lag limit jumps UP instantly during a warp or a hold, then eases back down afterwards.
         float capTarget = holdActive ? holdMaxLag
-                        : maxFollowLag + ((motor.IsDodging || motor.IsBallDashing) ? warpExtraLag : 0f);
+                        : maxFollowLag + ((motor.IsDodging || motor.IsBallDashing || motor.IsChargedDashing) ? warpExtraLag : 0f);
         lagCap = capTarget > lagCap ? capTarget : Smooth(lagCap, capTarget, 3f);
 
         Vector3 lag = desiredPivot - smoothedPivot; lag.y = 0f;
@@ -263,7 +271,7 @@ public class ShadowCameraRig : MonoBehaviour
         transform.rotation = Quaternion.Euler(Pitch, Yaw, 0f);
 
         // ---- 7. Place the camera, with wall collision ----
-        float backGoal = backDistance - ((motor.IsSliding || motor.IsSpinDashing) ? slidePullIn : 0f);
+        float backGoal = backDistance - (motor.IsLowProfile ? slidePullIn : 0f);
         currentBack = Smooth(currentBack, backGoal, slideZoomRate);
         Vector3 desiredCam = transform.TransformPoint(new Vector3(currentX, currentY, -currentBack));
         Vector3 toCam = desiredCam - smoothedPivot;
@@ -281,6 +289,8 @@ public class ShadowCameraRig : MonoBehaviour
         collisionDist = Mathf.Min(collisionDist, dist);
 
         cam.transform.position = smoothedPivot + dir * collisionDist;
+
+        if (motor.IsCharging) cam.transform.position += Random.insideUnitSphere * (chargeShake * motor.ChargeProgress);
 
         // ---- 8. Strafe roll: lean toward the direction of sideways travel ----
         Vector3 hv = motor.Velocity; hv.y = 0f;
@@ -364,7 +374,9 @@ public class ShadowCameraRig : MonoBehaviour
             fovOffset = -backFovSub * Mathf.Clamp01(-along / motor.walkSpeed);
 
         if (motor.IsSlamming) fovOffset += slamFovAdd;
-        if (motor.IsSliding || motor.IsSpinDashing) fovOffset = Mathf.Max(fovOffset, slideFovAdd); // like boosting, whichever is bigger
+        if (motor.IsLowProfile) fovOffset = Mathf.Max(fovOffset, slideFovAdd);
+        if (motor.IsCharging) fovOffset = Mathf.Max(fovOffset, chargeFovAdd * motor.ChargeProgress);
+        if (motor.IsChargedDashing) fovOffset = Mathf.Max(fovOffset, chargedDashFovAdd);
 
         // Smoothed FOV, plus the dodge punch added on top (so the punch isn't smoothed away).
         fovCurrent = Smooth(fovCurrent, baseFov + fovOffset, fovSmoothing);

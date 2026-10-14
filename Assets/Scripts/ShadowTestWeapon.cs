@@ -42,6 +42,14 @@ public class ShadowTestWeapon : MonoBehaviour
     public int maxPrimaryAmmo = 150;
     public int maxAltAmmo = 12;
 
+    [Header("Aim assist (per weapon: tune each one separately)")]
+    public AimAssistProfile primaryAssist = new AimAssistProfile();   // pistol: forgiving
+    // Shotgun: no hit forgiveness (the spread already forgives), a little friction.
+    public AimAssistProfile altAssist = new AimAssistProfile { coneDegrees = 0f, frictionAmount = 0.25f };
+
+    // Which profile the camera should use for mouse friction right now.
+    public AimAssistProfile CurrentAssist => input.AltFireHeld ? altAssist : primaryAssist;
+
     [Header("Testing")]
     public bool infiniteAmmo = true;   // UNTICK once enemies exist: ammo scarcity is a pillar
     public float muzzleDistance = 0.45f; // how far in front of the arm centre bullets start
@@ -79,7 +87,7 @@ public class ShadowTestWeapon : MonoBehaviour
         {
             nextPrimaryTime = Time.time + 1f / fireRate;
             if (!infiniteAmmo) primaryAmmo--;
-            FireRay(BaseDirection(), range, damage, new Color(1f, 0.9f, 0.3f));
+            FireRay(BaseDirection(), range, damage, new Color(1f, 0.9f, 0.3f), primaryAssist);
         }
 
         if (input.AltFireHeld && Time.time >= nextAltTime && (infiniteAmmo || altAmmo > 0))
@@ -93,7 +101,7 @@ public class ShadowTestWeapon : MonoBehaviour
                 // Random point inside a cone around the aim direction.
                 Vector2 r = Random.insideUnitCircle * Mathf.Tan(spreadDegrees * Mathf.Deg2Rad);
                 Vector3 dir = (look * new Vector3(r.x, r.y, 1f)).normalized;
-                FireRay(dir, altRange, pelletDamage, new Color(1f, 0.4f, 0.2f));
+                FireRay(dir, altRange, pelletDamage, new Color(1f, 0.4f, 0.2f), altAssist);
             }
         }
     }
@@ -103,17 +111,17 @@ public class ShadowTestWeapon : MonoBehaviour
     // The aim direction is simply where the camera (and so the crosshair) points.
     Vector3 BaseDirection() => motor.rig.cam.transform.forward;
 
-    void FireRay(Vector3 dir, float maxRange, float dmg, Color tracerColor)
+    void FireRay(Vector3 dir, float maxRange, float dmg, Color tracerColor, AimAssistProfile assist)
     {
         Vector3 muzzle = Muzzle();
         Vector3 end = muzzle + dir * maxRange;
+        bool landedOnTarget = false;
 
         // 1. What is under the crosshair? (camera ray: ignores Shadow, ignores things behind him)
         if (motor.CrosshairCast(dir, maxRange, out RaycastHit hit))
         {
-            // 2. Cover check from the arm. If a DIFFERENT solid object is between the muzzle and the
-            //    target, the shot hits it instead. A muzzle that is INSIDE the target (point-blank)
-            //    sees nothing in the way, so the shot goes through as it should.
+            // 2. Cover check from the arm (unchanged): a DIFFERENT solid object between the muzzle
+            //    and the target takes the shot instead.
             Vector3 toHit = hit.point - muzzle;
             float dist = toHit.magnitude;
             if (dist > 0.1f
@@ -125,9 +133,45 @@ public class ShadowTestWeapon : MonoBehaviour
             }
 
             end = hit.point;
-            Damage.Deal(hit.collider, dmg, hit.point, DamageKind.Gun);   // applies head / limb multipliers on a Hurtbox
+            // Deal() returns true only if what we hit can be hurt. A wall returns false.
+            landedOnTarget = Damage.Deal(hit.collider, dmg, hit.point, DamageKind.Gun);
         }
+
+        // 3. AIM ASSIST: the shot hit a wall or nothing. If an enemy was inside the forgiveness cone and
+        //    nothing solid is in the way, it becomes a BODY hit on that enemy instead.
+        if (!landedOnTarget && TryAssistedHit(dir, maxRange, dmg, assist, muzzle, out Vector3 assistPoint))
+            end = assistPoint;
+
         SpawnTracer(muzzle, end, tracerColor);
+    }
+
+    // Converts a near-miss into a hit. Returns true (and the point to draw the tracer to) if it did.
+    bool TryAssistedHit(Vector3 dir, float maxRange, float dmg, AimAssistProfile a, Vector3 muzzle, out Vector3 point)
+    {
+        point = default;
+        float s = AimAssist.Strength;                       // the player's 0..1 setting
+        if (a == null || !a.enabled || s <= 0f || a.coneDegrees <= 0f) return false;
+
+        Transform cam = motor.rig.cam.transform;
+        // Ignore anything behind Shadow, as seen from the camera (same rule as the crosshair ray).
+        float minDepth = Vector3.Dot(transform.position + Vector3.up - cam.position, cam.forward) - 0.75f;
+
+        if (!AimAssist.FindBest(cam.position, dir, maxRange, a.coneDegrees * s, a.coneMaxRadius * s,
+                                motor.aimMask, transform, minDepth, out AimAssist.Result r))
+            return false;
+
+        // Solid cover between the gun and the enemy? That is cover, not a miss to forgive.
+        Vector3 toP = r.point - muzzle;
+        float dist = toP.magnitude;
+        if (dist > 0.1f
+            && motor.WorldCast(muzzle, toP / dist, dist - 0.05f, out RaycastHit cover)
+            && !SameTarget(cover.collider, r.collider))
+            return false;
+
+        // Straight to the enemy, bypassing Hurtbox zone multipliers: always 1x BODY damage, never a headshot.
+        r.target.TakeDamage(dmg, r.point, DamageKind.Gun);
+        point = r.point;
+        return true;
     }
 
     // Two colliders belong to the same enemy if they share the same IDamageable (e.g. head + body).

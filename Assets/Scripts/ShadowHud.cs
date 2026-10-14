@@ -18,6 +18,7 @@ public class ShadowHud : MonoBehaviour
 {
     [Header("Crosshair")]
     public Color crosshairColor = Color.white;
+    public Color crosshairAssistColor = new Color(1f, 0.45f, 0.3f); // crosshair tint while aim-assist friction is active
     public float armLength = 9f;   // pixels
     public float gap = 5f;         // empty space around the centre
     public float thickness = 2f;
@@ -49,6 +50,8 @@ public class ShadowHud : MonoBehaviour
     // Live tuning of the homing sensor while the debug overlay is open.
     void Update()
     {
+        int aaStep = input.DebugAimAssistStep;
+        if (aaStep != 0) AimAssist.Strength = Mathf.Round((AimAssist.Strength + 0.1f * aaStep) * 10f) / 10f;
         if (input.DebugTogglePressed) motor.homingDebug = !motor.homingDebug;
         if (!motor.homingDebug) return;
 
@@ -63,6 +66,7 @@ public class ShadowHud : MonoBehaviour
         DrawCrosshair();
         DrawResources();
         DrawAmmo();
+        DrawAimAssistLabel();
         DrawLockOn();
         DrawHealth();
         if (motor.homingDebug) DrawHomingDebug();
@@ -95,8 +99,10 @@ public class ShadowHud : MonoBehaviour
         };
         foreach (Rect r in arms)
             Box(new Rect(r.x - o, r.y - o, r.width + o * 2f, r.height + o * 2f), Color.black);
+        
+        Color arm = motor.rig.AimAssistOnTarget ? crosshairAssistColor : crosshairColor;
         foreach (Rect r in arms)
-            Box(r, crosshairColor);
+            Box(r, arm);
     }
 
     // ------------------------------------------------------------------
@@ -150,6 +156,14 @@ public class ShadowHud : MonoBehaviour
 
         // ---- MODE (debug) ----
         Label(x, warpY - 22f, "MODE  " + motor.Mode + (motor.DebugGrounded ? "" : "   (AIR)")); // AIR flickering during a slide = ground contact is hopping
+    }
+
+    // Bottom right, above the ammo. Stand-in for a settings menu: , and . change it.
+    void DrawAimAssistLabel()
+    {
+        GUI.color = Color.white;
+        GUI.Label(new Rect(Screen.width - 320f, Screen.height - 68f, 300f, 20f),
+                  "AIM ASSIST  " + Mathf.RoundToInt(AimAssist.Strength * 100f) + "%   ( , / . )", smallStyle);
     }
 
     void DrawAmmo()
